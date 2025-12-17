@@ -8,9 +8,10 @@ and outputs converted files to corresponding subdirectories in an 'out' folder.
 """
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
+
+import ffmpeg
 
 
 def find_flac_files(base_path):
@@ -60,7 +61,7 @@ def create_output_directory(base_path, album_name):
 
 def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0"):
     """
-    Convert a single FLAC file to MP3 format using ffmpeg.
+    Convert a single FLAC file to MP3 format using ffmpeg-python.
     
     Args:
         flac_file (Path): Path to the input FLAC file
@@ -80,37 +81,27 @@ def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0"):
                 print(f"Error: Invalid VBR preset '{bitrate_preset}'. Use V0-V9.", file=sys.stderr)
                 return False
             
-            cmd = [
-                "ffmpeg",
-                "-i", str(flac_file),
-                "-codec:a", "libmp3lame",
-                "-q:a", quality,
-                "-y",  # Overwrite output file if it exists
-                str(output_file)
-            ]
+            # Use ffmpeg-python for VBR conversion
+            stream = ffmpeg.input(str(flac_file))
+            stream = ffmpeg.output(stream, str(output_file), **{
+                'codec:a': 'libmp3lame',
+                'q:a': quality
+            })
+            ffmpeg.run(stream, overwrite_output=True, quiet=True)
         else:
             # Constant bitrate (e.g., "320", "256", "192")
-            cmd = [
-                "ffmpeg",
-                "-i", str(flac_file),
-                "-codec:a", "libmp3lame",
-                "-b:a", f"{bitrate_preset}k",
-                "-y",
-                str(output_file)
-            ]
-        
-        # Run ffmpeg with suppressed output
-        subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True
-        )
+            stream = ffmpeg.input(str(flac_file))
+            stream = ffmpeg.output(stream, str(output_file), **{
+                'codec:a': 'libmp3lame',
+                'b:a': f'{bitrate_preset}k'
+            })
+            ffmpeg.run(stream, overwrite_output=True, quiet=True)
         
         return True
     
-    except subprocess.CalledProcessError as e:
-        print(f"Error converting {flac_file.name}: {e.stderr.decode()}", file=sys.stderr)
+    except ffmpeg.Error as e:
+        error_msg = e.stderr.decode() if e.stderr else str(e)
+        print(f"Error converting {flac_file.name}: {error_msg}", file=sys.stderr)
         return False
     except FileNotFoundError:
         print("Error: ffmpeg is not installed or not in PATH.", file=sys.stderr)

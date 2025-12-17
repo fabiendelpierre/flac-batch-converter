@@ -12,8 +12,9 @@ A Python script to batch convert FLAC audio files to MP3 format while preserving
 
 ## Requirements
 
-- Python 3.6 or higher
+- Python 3.8 or higher
 - ffmpeg with libmp3lame support
+- [uv](https://docs.astral.sh/uv/) package manager (recommended)
 
 ### Installing ffmpeg
 
@@ -31,6 +32,23 @@ brew install ffmpeg
 **Windows:**
 Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH.
 
+### Installing uv
+
+**Linux/macOS:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**Windows:**
+```bash
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Or install via pip:
+```bash
+pip install uv
+```
+
 ## Installation
 
 1. Clone this repository:
@@ -39,10 +57,12 @@ git clone https://github.com/fabiendelpierre/flac-batch-converter.git
 cd flac-batch-converter
 ```
 
-2. Make the script executable (Linux/macOS):
+2. Install dependencies using uv:
 ```bash
-chmod +x flac_batch_converter.py
+uv sync
 ```
+
+This will create a virtual environment and install all required Python dependencies (including `ffmpeg-python`).
 
 ## Usage
 
@@ -70,30 +90,31 @@ The script expects the following directory structure:
 Convert FLAC files using the default V0 preset (highest quality VBR):
 
 ```bash
-python3 flac_batch_converter.py /path/to/music
+uv run flac_batch_converter.py /path/to/music
 ```
 
-or
+Or, if you want to use the virtual environment directly:
 
 ```bash
-./flac_batch_converter.py /path/to/music
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+python flac_batch_converter.py /path/to/music
 ```
 
 ### Advanced Usage
 
 **Using V2 preset (high quality VBR):**
 ```bash
-python3 flac_batch_converter.py /path/to/music --bitrate V2
+uv run flac_batch_converter.py /path/to/music --bitrate V2
 ```
 
 **Using constant 320kbps bitrate:**
 ```bash
-python3 flac_batch_converter.py /path/to/music --bitrate 320
+uv run flac_batch_converter.py /path/to/music --bitrate 320
 ```
 
 **Using constant 192kbps bitrate:**
 ```bash
-python3 flac_batch_converter.py /path/to/music --bitrate 192
+uv run flac_batch_converter.py /path/to/music --bitrate 192
 ```
 
 ### Command-Line Options
@@ -142,7 +163,7 @@ mkdir -p /tmp/music/out
 # Place FLAC files in /tmp/music/in/MyAlbum/
 
 # Convert with V0 preset
-python3 flac_batch_converter.py /tmp/music
+uv run flac_batch_converter.py /tmp/music
 
 # Output will be in /tmp/music/out/MyAlbum/
 ```
