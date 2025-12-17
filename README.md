@@ -2,6 +2,10 @@
 
 A Python script to batch convert FLAC audio files to MP3 format while preserving album directory structure.
 
+The entire script was written by Copilot. For context: I ditched Windows a while back. In Windows, I was an avid user of dBpoweramp for batch conversions of audio file. I used it for decades. I now only have Mac and Linux machines. I needed a simple, cross-platform script that behaves in a specific way: start with a base path with a subfolder called `in`. Copy a bunch of FLAC albums in separate folders to the `in` folder. Run the conversion to MP3 and write them to another subfolder called `out` and replicate the album folders and put the MP3s in there. Do this with high parallelism to save time when processing hundreds of files.
+
+This script does exactly that and nothing more, uses Python and works on macOS and Linux. It might even work on Windows, I don't know because I didn't test it in Windows.
+
 ## Features
 
 - Batch conversion of FLAC files to MP3 format
@@ -261,4 +265,4 @@ Conversion complete!
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU GPLv3 - see the [LICENSE](LICENSE) file for details.
