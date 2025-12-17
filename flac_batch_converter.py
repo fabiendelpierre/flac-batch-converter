@@ -100,7 +100,11 @@ def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0"):
         return True
     
     except ffmpeg.Error as e:
-        error_msg = e.stderr.decode() if e.stderr else str(e)
+        # Extract error message from stderr if available
+        if hasattr(e, 'stderr') and e.stderr:
+            error_msg = e.stderr.decode() if isinstance(e.stderr, bytes) else str(e.stderr)
+        else:
+            error_msg = str(e)
         print(f"Error converting {flac_file.name}: {error_msg}", file=sys.stderr)
         return False
     except FileNotFoundError:
