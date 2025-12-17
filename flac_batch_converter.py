@@ -81,7 +81,7 @@ def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0", threads=0):
             # Validate that quality is a single digit 0-9
             if not (quality.isdigit() and len(quality) == 1 and 0 <= int(quality) <= 9):
                 print(f"Error: Invalid VBR preset '{bitrate_preset}'. Use V0-V9.", file=sys.stderr)
-                return False
+                return (flac_file, False)
             
             # Use ffmpeg-python for VBR conversion with multi-threading
             stream = ffmpeg.input(str(flac_file), thread_queue_size=512)
