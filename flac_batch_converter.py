@@ -82,7 +82,7 @@ def copy_image_files(source_dir, dest_dir):
                 shutil.copy2(file_path, dest_file)
                 copied_count += 1
             except Exception as e:
-                print(f"  Warning: Failed to copy {file_path.name}: {e}", file=sys.stderr)
+                print(f"  Warning: Failed to copy {file_path.name} to {dest_file}: {e}", file=sys.stderr)
     
     return copied_count
 
