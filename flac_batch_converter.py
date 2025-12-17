@@ -8,6 +8,7 @@ and outputs converted files to corresponding subdirectories in an 'out' folder.
 """
 
 import argparse
+import shutil
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -58,6 +59,32 @@ def create_output_directory(base_path, album_name):
     out_path = base_path / "out" / album_name
     out_path.mkdir(parents=True, exist_ok=True)
     return out_path
+
+
+def copy_image_files(source_dir, dest_dir):
+    """
+    Copy image files (album art) from source to destination directory.
+    
+    Args:
+        source_dir (Path): Source album directory
+        dest_dir (Path): Destination album directory
+        
+    Returns:
+        int: Number of image files copied
+    """
+    image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif']
+    copied_count = 0
+    
+    for file_path in source_dir.iterdir():
+        if file_path.is_file() and file_path.suffix.lower() in image_extensions:
+            dest_file = dest_dir / file_path.name
+            try:
+                shutil.copy2(file_path, dest_file)
+                copied_count += 1
+            except Exception as e:
+                print(f"  Warning: Failed to copy {file_path.name}: {e}", file=sys.stderr)
+    
+    return copied_count
 
 
 def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0", threads=0):
@@ -192,72 +219,102 @@ Examples:
     print(f"Using parallel jobs: {args.jobs}")
     print()
     
-    # Convert files
-    converted = 0
-    failed = 0
+    # Prepare all conversion tasks across all albums
+    all_conversion_tasks = []
+    album_image_tasks = []
     
     for album_name, flac_files in albums.items():
-        print(f"Processing album: {album_name}")
-        
         # Create output directory for this album
         album_out_path = create_output_directory(base_path, album_name)
+        album_in_path = base_path / "in" / album_name
         
-        # Prepare conversion tasks
-        conversion_tasks = []
+        # Store image copy task
+        album_image_tasks.append((album_name, album_in_path, album_out_path))
+        
+        # Prepare conversion tasks for this album
         for flac_file in flac_files:
             mp3_filename = flac_file.stem + ".mp3"
             output_file = album_out_path / mp3_filename
-            conversion_tasks.append((flac_file, output_file, mp3_filename))
-        
-        # Process files in parallel or sequentially
-        if args.jobs > 1:
-            # Parallel processing
-            with ThreadPoolExecutor(max_workers=args.jobs) as executor:
-                # Submit all tasks
-                future_to_file = {}
-                for flac_file, output_file, mp3_filename in conversion_tasks:
-                    future = executor.submit(
-                        convert_flac_to_mp3,
-                        flac_file,
-                        output_file,
-                        args.bitrate,
-                        args.threads
-                    )
-                    future_to_file[future] = (flac_file, mp3_filename)
+            all_conversion_tasks.append((album_name, flac_file, output_file, mp3_filename))
+    
+    # Convert files
+    converted = 0
+    failed = 0
+    images_copied = 0
+    
+    # Process files in parallel or sequentially
+    if args.jobs > 1:
+        # Parallel processing across all albums
+        with ThreadPoolExecutor(max_workers=args.jobs) as executor:
+            # Submit all conversion tasks
+            future_to_file = {}
+            for album_name, flac_file, output_file, mp3_filename in all_conversion_tasks:
+                future = executor.submit(
+                    convert_flac_to_mp3,
+                    flac_file,
+                    output_file,
+                    args.bitrate,
+                    args.threads
+                )
+                future_to_file[future] = (album_name, flac_file, mp3_filename)
+            
+            # Process results as they complete
+            current_album = None
+            for future in as_completed(future_to_file):
+                album_name, flac_file, mp3_filename = future_to_file[future]
                 
-                # Process results as they complete
-                for future in as_completed(future_to_file):
-                    flac_file, mp3_filename = future_to_file[future]
-                    try:
-                        result_file, success = future.result()
-                        print(f"  Converting: {flac_file.name} -> {mp3_filename}... {'✓' if success else '✗'}")
-                        if success:
-                            converted += 1
-                        else:
-                            failed += 1
-                    except Exception as e:
-                        print(f"  Converting: {flac_file.name} -> {mp3_filename}... ✗")
-                        print(f"  Unexpected error: {e}", file=sys.stderr)
+                # Print album name if switching to a new album
+                if current_album != album_name:
+                    if current_album is not None:
+                        print()
+                    print(f"Processing album: {album_name}")
+                    current_album = album_name
+                
+                try:
+                    result_file, success = future.result()
+                    print(f"  Converting: {flac_file.name} -> {mp3_filename}... {'✓' if success else '✗'}")
+                    if success:
+                        converted += 1
+                    else:
                         failed += 1
-        else:
-            # Sequential processing (original behavior)
-            for flac_file, output_file, mp3_filename in conversion_tasks:
-                print(f"  Converting: {flac_file.name} -> {mp3_filename}...", end=" ", flush=True)
-                result_file, success = convert_flac_to_mp3(flac_file, output_file, args.bitrate, args.threads)
-                if success:
-                    print("✓")
-                    converted += 1
-                else:
-                    print("✗")
+                except Exception as e:
+                    print(f"  Converting: {flac_file.name} -> {mp3_filename}... ✗")
+                    print(f"  Unexpected error: {e}", file=sys.stderr)
                     failed += 1
+    else:
+        # Sequential processing (original behavior)
+        current_album = None
+        for album_name, flac_file, output_file, mp3_filename in all_conversion_tasks:
+            # Print album header when switching albums
+            if current_album != album_name:
+                print(f"Processing album: {album_name}")
+                current_album = album_name
+            
+            print(f"  Converting: {flac_file.name} -> {mp3_filename}...", end=" ", flush=True)
+            result_file, success = convert_flac_to_mp3(flac_file, output_file, args.bitrate, args.threads)
+            if success:
+                print("✓")
+                converted += 1
+            else:
+                print("✗")
+                failed += 1
+    
+    # Copy image files for all albums
+    print()
+    print("Copying album artwork...")
+    for album_name, album_in_path, album_out_path in album_image_tasks:
+        copied = copy_image_files(album_in_path, album_out_path)
+        if copied > 0:
+            print(f"  {album_name}: Copied {copied} image file(s)")
+            images_copied += copied
     
     # Summary
     print()
     print("=" * 50)
     print(f"Conversion complete!")
-    print(f"  Successful: {converted}")
+    print(f"  Audio files converted: {converted}/{total_files}")
     print(f"  Failed: {failed}")
-    print(f"  Total: {total_files}")
+    print(f"  Image files copied: {images_copied}")
     print("=" * 50)
     
     return 0 if failed == 0 else 1

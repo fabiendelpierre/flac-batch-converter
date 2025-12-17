@@ -6,8 +6,11 @@ A Python script to batch convert FLAC audio files to MP3 format while preserving
 
 - Batch conversion of FLAC files to MP3 format
 - Preserves album directory structure
+- **Automatically copies album artwork** (jpg, png, gif, etc.) to output folders
 - Configurable bitrate/quality settings
 - Support for Variable Bitrate (VBR) and Constant Bitrate (CBR)
+- **True parallel processing** across multiple albums simultaneously
+- Multi-threading support for individual file conversions
 - Uses ffmpeg with LAME encoder for high-quality MP3 output
 
 ## Requirements
@@ -166,13 +169,19 @@ The script offers two levels of parallelism for optimal performance:
 
 1. **`--threads` (FFmpeg threading)**: Controls how many CPU threads FFmpeg uses *within* each conversion job. This helps individual files convert faster. Default is `0` (auto-detect).
 
-2. **`--jobs` (Parallel jobs)**: Controls how many files are converted *simultaneously*. This is true parallelism - multiple files being processed at the same time. Default is `1` (sequential).
+2. **`--jobs` (Parallel jobs)**: Controls how many files are converted *simultaneously* **across all albums**. This is true parallelism - multiple files from different albums being processed at the same time. Default is `1` (sequential).
+
+**Key improvement**: Parallel processing now works across all albums, not one album at a time. With `--jobs 8` and folders containing 6 files each, the script will start processing files from the next folder while finishing the first, maximizing CPU utilization.
 
 **Recommendations:**
 - For systems with 4+ CPU cores: Use `--jobs 4` or `--jobs 8` for significant speed improvements
 - Combine both for maximum performance: `--jobs 4 --threads 2`
 - Be mindful of RAM usage with high `--jobs` values, especially with large FLAC files
 - Start with `--jobs` equal to the number of CPU cores on your system
+
+**Album Artwork:**
+- Image files (jpg, png, gif, bmp, webp, tiff) are automatically copied from source to destination folders
+- Useful for preserving album cover art for music library imports
 
 ## Bitrate Presets
 
