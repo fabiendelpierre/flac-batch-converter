@@ -33,10 +33,10 @@ def find_flac_files(base_path):
     albums = {}
     
     # Iterate through album directories
-    for album_dir in in_path.iterdir():
+    for album_dir in sorted(in_path.iterdir()):
         if album_dir.is_dir():
             # Case-insensitive matching for .flac and .FLAC extensions
-            flac_files = list(album_dir.glob("*.[Ff][Ll][Aa][Cc]"))
+            flac_files = sorted(album_dir.glob("*.[Ff][Ll][Aa][Cc]"))
             if flac_files:
                 albums[album_dir.name] = flac_files
     
@@ -59,7 +59,7 @@ def create_output_directory(base_path, album_name):
     return out_path
 
 
-def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0"):
+def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0", threads=0):
     """
     Convert a single FLAC file to MP3 format using ffmpeg-python.
     
@@ -67,6 +67,7 @@ def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0"):
         flac_file (Path): Path to the input FLAC file
         output_file (Path): Path to the output MP3 file
         bitrate_preset (str): LAME bitrate preset (default: "V0")
+        threads (int): Number of threads for ffmpeg (default: 0 = auto)
         
     Returns:
         bool: True if conversion was successful, False otherwise
@@ -81,21 +82,23 @@ def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0"):
                 print(f"Error: Invalid VBR preset '{bitrate_preset}'. Use V0-V9.", file=sys.stderr)
                 return False
             
-            # Use ffmpeg-python for VBR conversion
-            stream = ffmpeg.input(str(flac_file))
+            # Use ffmpeg-python for VBR conversion with multi-threading
+            stream = ffmpeg.input(str(flac_file), thread_queue_size=512)
             stream = ffmpeg.output(stream, str(output_file), **{
                 'codec:a': 'libmp3lame',
-                'q:a': quality
+                'q:a': quality,
+                'threads': threads
             })
-            ffmpeg.run(stream, overwrite_output=True, quiet=True)
+            ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
         else:
             # Constant bitrate (e.g., "320", "256", "192")
-            stream = ffmpeg.input(str(flac_file))
+            stream = ffmpeg.input(str(flac_file), thread_queue_size=512)
             stream = ffmpeg.output(stream, str(output_file), **{
                 'codec:a': 'libmp3lame',
-                'b:a': f'{bitrate_preset}k'
+                'b:a': f'{bitrate_preset}k',
+                'threads': threads
             })
-            ffmpeg.run(stream, overwrite_output=True, quiet=True)
+            ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
         
         return True
     
@@ -144,6 +147,13 @@ Examples:
         help="Bitrate preset: V0-V9 for VBR (default: V0), or constant bitrate like 320, 256, 192"
     )
     
+    parser.add_argument(
+        "-t", "--threads",
+        type=int,
+        default=0,
+        help="Number of threads for ffmpeg to use (default: 0 = auto-detect optimal number)"
+    )
+    
     args = parser.parse_args()
     
     # Convert to Path object
@@ -169,6 +179,8 @@ Examples:
     total_files = sum(len(files) for files in albums.values())
     print(f"Found {total_files} FLAC file(s) across {len(albums)} album(s)")
     print(f"Using bitrate preset: {args.bitrate}")
+    threads_msg = "auto" if args.threads == 0 else str(args.threads)
+    print(f"Using threads: {threads_msg}")
     print()
     
     # Convert files
@@ -186,9 +198,9 @@ Examples:
             mp3_filename = flac_file.stem + ".mp3"
             output_file = album_out_path / mp3_filename
             
-            print(f"  Converting: {flac_file.name} -> {mp3_filename}...", end=" ")
+            print(f"  Converting: {flac_file.name} -> {mp3_filename}...", end=" ", flush=True)
             
-            if convert_flac_to_mp3(flac_file, output_file, args.bitrate):
+            if convert_flac_to_mp3(flac_file, output_file, args.bitrate, args.threads):
                 print("✓")
                 converted += 1
             else:

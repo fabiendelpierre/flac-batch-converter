@@ -117,10 +117,19 @@ uv run flac_batch_converter.py /path/to/music --bitrate 320
 uv run flac_batch_converter.py /path/to/music --bitrate 192
 ```
 
+**Using multi-threading for faster conversion:**
+```bash
+# Specify number of threads (e.g., 4 threads)
+uv run flac_batch_converter.py /path/to/music --threads 4
+
+# Or use auto-detection (default, lets FFmpeg choose optimal thread count)
+uv run flac_batch_converter.py /path/to/music --threads 0
+```
+
 ### Command-Line Options
 
 ```
-usage: flac_batch_converter.py [-h] [-b BITRATE] base_path
+usage: flac_batch_converter.py [-h] [-b BITRATE] [-t THREADS] base_path
 
 Batch convert FLAC files to MP3 format.
 
@@ -132,6 +141,9 @@ optional arguments:
   -b BITRATE, --bitrate BITRATE
                         Bitrate preset: V0-V9 for VBR (default: V0), or
                         constant bitrate like 320, 256, 192
+  -t THREADS, --threads THREADS
+                        Number of threads for ffmpeg to use (default: 0 = 
+                        auto-detect optimal number)
 ```
 
 ## Bitrate Presets
