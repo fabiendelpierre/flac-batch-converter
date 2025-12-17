@@ -35,24 +35,20 @@ def find_flac_files(base_path):
     
     flac_files = []
     
-    # Recursively find all FLAC files
-    # Using rglob with case-insensitive pattern
-    for pattern in ["**/*.flac", "**/*.FLAC"]:
-        for flac_file in sorted(in_path.glob(pattern)):
+    # Recursively find all FLAC files with case-insensitive matching
+    # Use a set to avoid duplicates and then sort
+    found_files = set()
+    for pattern in ["**/*.[Ff][Ll][Aa][Cc]"]:
+        for flac_file in in_path.glob(pattern):
             if flac_file.is_file():
-                # Get the relative path from the 'in' folder
-                relative_path = flac_file.relative_to(in_path)
-                flac_files.append((flac_file, relative_path))
+                found_files.add(flac_file)
     
-    # Remove duplicates (in case a file matches multiple patterns)
-    seen = set()
-    unique_flac_files = []
-    for flac_file, relative_path in flac_files:
-        if flac_file not in seen:
-            seen.add(flac_file)
-            unique_flac_files.append((flac_file, relative_path))
+    # Convert to list with relative paths and sort
+    for flac_file in sorted(found_files):
+        relative_path = flac_file.relative_to(in_path)
+        flac_files.append((flac_file, relative_path))
     
-    return unique_flac_files
+    return flac_files
 
 
 def create_output_directory(base_path, relative_path):
@@ -247,8 +243,8 @@ Examples:
         mp3_filename = flac_file.stem + ".mp3"
         output_file = output_dir / mp3_filename
         
-        # Use the parent directory as the "album name" for display purposes
-        display_path = str(relative_path.parent) if relative_path.parent != Path('.') else relative_path.name
+        # Use the parent directory as the display path for grouping
+        display_path = str(relative_path.parent) if str(relative_path.parent) != '.' else ""
         
         all_conversion_tasks.append((display_path, flac_file, output_file, mp3_filename))
     
