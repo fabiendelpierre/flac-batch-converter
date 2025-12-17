@@ -1,0 +1,11 @@
+[project]
+name = "flac-batch-converter"
+version = "0.1.0"
+description = "Batch convert FLAC audio files to MP3 format"
+requires-python = ">=3.8"
+dependencies = [
+    "ffmpeg-python>=0.2.0",
+]
+
+[project.scripts]
+flac-batch-converter = "flac_batch_converter:main"
