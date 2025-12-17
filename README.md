@@ -126,10 +126,22 @@ uv run flac_batch_converter.py /path/to/music --threads 4
 uv run flac_batch_converter.py /path/to/music --threads 0
 ```
 
+**Using parallel processing to convert multiple files simultaneously:**
+```bash
+# Convert 4 files at once (recommended for systems with 4+ CPU cores)
+uv run flac_batch_converter.py /path/to/music --jobs 4
+
+# Combine parallel jobs with per-job threading for maximum performance
+uv run flac_batch_converter.py /path/to/music --jobs 4 --threads 2
+
+# Process all files in parallel (use with caution on systems with limited RAM)
+uv run flac_batch_converter.py /path/to/music --jobs 8
+```
+
 ### Command-Line Options
 
 ```
-usage: flac_batch_converter.py [-h] [-b BITRATE] [-t THREADS] base_path
+usage: flac_batch_converter.py [-h] [-b BITRATE] [-t THREADS] [-j JOBS] base_path
 
 Batch convert FLAC files to MP3 format.
 
@@ -144,7 +156,23 @@ optional arguments:
   -t THREADS, --threads THREADS
                         Number of threads for ffmpeg to use (default: 0 = 
                         auto-detect optimal number)
+  -j JOBS, --jobs JOBS  Number of parallel conversion jobs (default: 1 = 
+                        sequential processing)
 ```
+
+### Performance Tuning
+
+The script offers two levels of parallelism for optimal performance:
+
+1. **`--threads` (FFmpeg threading)**: Controls how many CPU threads FFmpeg uses *within* each conversion job. This helps individual files convert faster. Default is `0` (auto-detect).
+
+2. **`--jobs` (Parallel jobs)**: Controls how many files are converted *simultaneously*. This is true parallelism - multiple files being processed at the same time. Default is `1` (sequential).
+
+**Recommendations:**
+- For systems with 4+ CPU cores: Use `--jobs 4` or `--jobs 8` for significant speed improvements
+- Combine both for maximum performance: `--jobs 4 --threads 2`
+- Be mindful of RAM usage with high `--jobs` values, especially with large FLAC files
+- Start with `--jobs` equal to the number of CPU cores on your system
 
 ## Bitrate Presets
 
@@ -174,8 +202,11 @@ mkdir -p /tmp/music/out
 
 # Place FLAC files in /tmp/music/in/MyAlbum/
 
-# Convert with V0 preset
+# Convert with V0 preset (sequential)
 uv run flac_batch_converter.py /tmp/music
+
+# Convert with parallel processing (4 files at once)
+uv run flac_batch_converter.py /tmp/music --jobs 4
 
 # Output will be in /tmp/music/out/MyAlbum/
 ```

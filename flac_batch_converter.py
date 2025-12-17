@@ -9,6 +9,7 @@ and outputs converted files to corresponding subdirectories in an 'out' folder.
 
 import argparse
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import ffmpeg
@@ -70,7 +71,7 @@ def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0", threads=0):
         threads (int): Number of threads for ffmpeg (default: 0 = auto)
         
     Returns:
-        bool: True if conversion was successful, False otherwise
+        tuple: (flac_file, success) where success is True if conversion was successful
     """
     try:
         # Parse the preset
@@ -100,7 +101,7 @@ def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0", threads=0):
             })
             ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
         
-        return True
+        return (flac_file, True)
     
     except ffmpeg.Error as e:
         # Extract error message from stderr if available
@@ -109,7 +110,7 @@ def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0", threads=0):
         else:
             error_msg = str(e)
         print(f"Error converting {flac_file.name}: {error_msg}", file=sys.stderr)
-        return False
+        return (flac_file, False)
     except FileNotFoundError:
         print("Error: ffmpeg is not installed or not in PATH.", file=sys.stderr)
         print("Please install ffmpeg to use this script.", file=sys.stderr)
@@ -154,6 +155,13 @@ Examples:
         help="Number of threads for ffmpeg to use (default: 0 = auto-detect optimal number)"
     )
     
+    parser.add_argument(
+        "-j", "--jobs",
+        type=int,
+        default=1,
+        help="Number of parallel conversion jobs (default: 1 = sequential processing)"
+    )
+    
     args = parser.parse_args()
     
     # Convert to Path object
@@ -180,7 +188,8 @@ Examples:
     print(f"Found {total_files} FLAC file(s) across {len(albums)} album(s)")
     print(f"Using bitrate preset: {args.bitrate}")
     threads_msg = "auto" if args.threads == 0 else str(args.threads)
-    print(f"Using threads: {threads_msg}")
+    print(f"Using threads per job: {threads_msg}")
+    print(f"Using parallel jobs: {args.jobs}")
     print()
     
     # Convert files
@@ -193,19 +202,54 @@ Examples:
         # Create output directory for this album
         album_out_path = create_output_directory(base_path, album_name)
         
+        # Prepare conversion tasks
+        conversion_tasks = []
         for flac_file in flac_files:
-            # Generate output filename
             mp3_filename = flac_file.stem + ".mp3"
             output_file = album_out_path / mp3_filename
-            
-            print(f"  Converting: {flac_file.name} -> {mp3_filename}...", end=" ", flush=True)
-            
-            if convert_flac_to_mp3(flac_file, output_file, args.bitrate, args.threads):
-                print("✓")
-                converted += 1
-            else:
-                print("✗")
-                failed += 1
+            conversion_tasks.append((flac_file, output_file, mp3_filename))
+        
+        # Process files in parallel or sequentially
+        if args.jobs > 1:
+            # Parallel processing
+            with ThreadPoolExecutor(max_workers=args.jobs) as executor:
+                # Submit all tasks
+                future_to_file = {}
+                for flac_file, output_file, mp3_filename in conversion_tasks:
+                    future = executor.submit(
+                        convert_flac_to_mp3,
+                        flac_file,
+                        output_file,
+                        args.bitrate,
+                        args.threads
+                    )
+                    future_to_file[future] = (flac_file, mp3_filename)
+                
+                # Process results as they complete
+                for future in as_completed(future_to_file):
+                    flac_file, mp3_filename = future_to_file[future]
+                    try:
+                        result_file, success = future.result()
+                        print(f"  Converting: {flac_file.name} -> {mp3_filename}... {'✓' if success else '✗'}")
+                        if success:
+                            converted += 1
+                        else:
+                            failed += 1
+                    except Exception as e:
+                        print(f"  Converting: {flac_file.name} -> {mp3_filename}... ✗")
+                        print(f"  Unexpected error: {e}", file=sys.stderr)
+                        failed += 1
+        else:
+            # Sequential processing (original behavior)
+            for flac_file, output_file, mp3_filename in conversion_tasks:
+                print(f"  Converting: {flac_file.name} -> {mp3_filename}...", end=" ", flush=True)
+                result_file, success = convert_flac_to_mp3(flac_file, output_file, args.bitrate, args.threads)
+                if success:
+                    print("✓")
+                    converted += 1
+                else:
+                    print("✗")
+                    failed += 1
     
     # Summary
     print()
