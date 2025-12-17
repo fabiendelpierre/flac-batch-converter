@@ -8,7 +8,6 @@ and outputs converted files to corresponding subdirectories in an 'out' folder.
 """
 
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -35,7 +34,8 @@ def find_flac_files(base_path):
     # Iterate through album directories
     for album_dir in in_path.iterdir():
         if album_dir.is_dir():
-            flac_files = list(album_dir.glob("*.flac"))
+            # Case-insensitive matching for .flac and .FLAC extensions
+            flac_files = list(album_dir.glob("*.[Ff][Ll][Aa][Cc]"))
             if flac_files:
                 albums[album_dir.name] = flac_files
     
@@ -75,6 +75,11 @@ def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0"):
         if bitrate_preset.upper().startswith("V"):
             # Variable bitrate preset (V0-V9)
             quality = bitrate_preset[1:]
+            # Validate that quality is a single digit 0-9
+            if not (quality.isdigit() and len(quality) == 1 and 0 <= int(quality) <= 9):
+                print(f"Error: Invalid VBR preset '{bitrate_preset}'. Use V0-V9.", file=sys.stderr)
+                return False
+            
             cmd = [
                 "ffmpeg",
                 "-i", str(flac_file),
@@ -95,7 +100,7 @@ def convert_flac_to_mp3(flac_file, output_file, bitrate_preset="V0"):
             ]
         
         # Run ffmpeg with suppressed output
-        result = subprocess.run(
+        subprocess.run(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
