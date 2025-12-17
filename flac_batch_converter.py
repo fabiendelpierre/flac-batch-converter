@@ -18,13 +18,14 @@ import ffmpeg
 
 def find_flac_files(base_path):
     """
-    Find all FLAC files in the input directory organized by album folders.
+    Find all FLAC files recursively in the input directory.
     
     Args:
         base_path (Path): The base path containing 'in' folder
         
     Returns:
-        dict: Dictionary mapping album names to lists of FLAC file paths
+        list: List of tuples (flac_file_path, relative_path_from_in) where
+              relative_path_from_in is the path relative to the 'in' folder
     """
     in_path = base_path / "in"
     
@@ -32,57 +33,73 @@ def find_flac_files(base_path):
         print(f"Error: Input directory '{in_path}' does not exist.", file=sys.stderr)
         sys.exit(1)
     
-    albums = {}
+    flac_files = []
     
-    # Iterate through album directories
-    for album_dir in sorted(in_path.iterdir()):
-        if album_dir.is_dir():
-            # Case-insensitive matching for .flac and .FLAC extensions
-            flac_files = sorted(album_dir.glob("*.[Ff][Ll][Aa][Cc]"))
-            if flac_files:
-                albums[album_dir.name] = flac_files
+    # Recursively find all FLAC files
+    # Using rglob with case-insensitive pattern
+    for pattern in ["**/*.flac", "**/*.FLAC"]:
+        for flac_file in sorted(in_path.glob(pattern)):
+            if flac_file.is_file():
+                # Get the relative path from the 'in' folder
+                relative_path = flac_file.relative_to(in_path)
+                flac_files.append((flac_file, relative_path))
     
-    return albums
+    # Remove duplicates (in case a file matches multiple patterns)
+    seen = set()
+    unique_flac_files = []
+    for flac_file, relative_path in flac_files:
+        if flac_file not in seen:
+            seen.add(flac_file)
+            unique_flac_files.append((flac_file, relative_path))
+    
+    return unique_flac_files
 
 
-def create_output_directory(base_path, album_name):
+def create_output_directory(base_path, relative_path):
     """
-    Create the output directory for an album if it doesn't exist.
+    Create the output directory preserving the relative path structure.
     
     Args:
         base_path (Path): The base path containing 'out' folder
-        album_name (str): Name of the album (subdirectory)
+        relative_path (Path): Relative path from 'in' folder to preserve structure
         
     Returns:
-        Path: Path to the output directory for this album
+        Path: Path to the output directory
     """
-    out_path = base_path / "out" / album_name
+    out_path = base_path / "out" / relative_path.parent
     out_path.mkdir(parents=True, exist_ok=True)
     return out_path
 
 
-def copy_image_files(source_dir, dest_dir):
+def copy_image_files_recursive(base_path):
     """
-    Copy image files (album art) from source to destination directory.
+    Copy all image files (album art) from source to destination directory recursively.
     
     Args:
-        source_dir (Path): Source album directory
-        dest_dir (Path): Destination album directory
+        base_path (Path): The base path containing 'in' and 'out' folders
         
     Returns:
         int: Number of image files copied
     """
+    in_path = base_path / "in"
     image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif']
     copied_count = 0
     
-    for file_path in source_dir.iterdir():
-        if file_path.is_file() and file_path.suffix.lower() in image_extensions:
-            dest_file = dest_dir / file_path.name
+    # Find all image files recursively
+    for image_file in in_path.rglob("*"):
+        if image_file.is_file() and image_file.suffix.lower() in image_extensions:
+            # Get relative path from 'in' folder
+            relative_path = image_file.relative_to(in_path)
+            dest_file = base_path / "out" / relative_path
+            
+            # Create destination directory if it doesn't exist
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            
             try:
-                shutil.copy2(file_path, dest_file)
+                shutil.copy2(image_file, dest_file)
                 copied_count += 1
             except Exception as e:
-                print(f"  Warning: Failed to copy {file_path.name} to {dest_file}: {e}", file=sys.stderr)
+                print(f"  Warning: Failed to copy {image_file.name} to {dest_file}: {e}", file=sys.stderr)
     
     return copied_count
 
@@ -202,40 +219,38 @@ Examples:
     out_path = base_path / "out"
     out_path.mkdir(exist_ok=True)
     
-    # Find all FLAC files organized by album
-    print(f"Scanning for FLAC files in: {base_path / 'in'}")
-    albums = find_flac_files(base_path)
+    # Find all FLAC files recursively
+    print(f"Scanning for FLAC files recursively in: {base_path / 'in'}")
+    flac_files_list = find_flac_files(base_path)
     
-    if not albums:
-        print("No FLAC files found in album directories.", file=sys.stderr)
+    if not flac_files_list:
+        print("No FLAC files found.", file=sys.stderr)
         sys.exit(0)
     
-    # Count total files
-    total_files = sum(len(files) for files in albums.values())
-    print(f"Found {total_files} FLAC file(s) across {len(albums)} album(s)")
+    # Count total files and get unique directories
+    total_files = len(flac_files_list)
+    unique_dirs = set(relative_path.parent for _, relative_path in flac_files_list)
+    
+    print(f"Found {total_files} FLAC file(s) in {len(unique_dirs)} folder(s)")
     print(f"Using bitrate preset: {args.bitrate}")
     threads_msg = "auto" if args.threads == 0 else str(args.threads)
     print(f"Using threads per job: {threads_msg}")
     print(f"Using parallel jobs: {args.jobs}")
     print()
     
-    # Prepare all conversion tasks across all albums
+    # Prepare all conversion tasks
     all_conversion_tasks = []
-    album_image_tasks = []
     
-    for album_name, flac_files in albums.items():
-        # Create output directory for this album
-        album_out_path = create_output_directory(base_path, album_name)
-        album_in_path = base_path / "in" / album_name
+    for flac_file, relative_path in flac_files_list:
+        # Create output directory preserving structure
+        output_dir = create_output_directory(base_path, relative_path)
+        mp3_filename = flac_file.stem + ".mp3"
+        output_file = output_dir / mp3_filename
         
-        # Store image copy task
-        album_image_tasks.append((album_name, album_in_path, album_out_path))
+        # Use the parent directory as the "album name" for display purposes
+        display_path = str(relative_path.parent) if relative_path.parent != Path('.') else relative_path.name
         
-        # Prepare conversion tasks for this album
-        for flac_file in flac_files:
-            mp3_filename = flac_file.stem + ".mp3"
-            output_file = album_out_path / mp3_filename
-            all_conversion_tasks.append((album_name, flac_file, output_file, mp3_filename))
+        all_conversion_tasks.append((display_path, flac_file, output_file, mp3_filename))
     
     # Convert files
     converted = 0
@@ -259,16 +274,16 @@ Examples:
                 future_to_file[future] = (album_name, flac_file, mp3_filename)
             
             # Process results as they complete
-            current_album = None
+            current_dir = None
             for future in as_completed(future_to_file):
-                album_name, flac_file, mp3_filename = future_to_file[future]
+                display_path, flac_file, mp3_filename = future_to_file[future]
                 
-                # Print album name if switching to a new album
-                if current_album != album_name:
-                    if current_album is not None:
+                # Print directory name if switching to a new directory
+                if current_dir != display_path:
+                    if current_dir is not None:
                         print()
-                    print(f"Processing album: {album_name}")
-                    current_album = album_name
+                    print(f"Processing: {display_path}")
+                    current_dir = display_path
                 
                 try:
                     result_file, success = future.result()
@@ -283,12 +298,12 @@ Examples:
                     failed += 1
     else:
         # Sequential processing (original behavior)
-        current_album = None
-        for album_name, flac_file, output_file, mp3_filename in all_conversion_tasks:
-            # Print album header when switching albums
-            if current_album != album_name:
-                print(f"Processing album: {album_name}")
-                current_album = album_name
+        current_dir = None
+        for display_path, flac_file, output_file, mp3_filename in all_conversion_tasks:
+            # Print directory header when switching directories
+            if current_dir != display_path:
+                print(f"Processing: {display_path}")
+                current_dir = display_path
             
             print(f"  Converting: {flac_file.name} -> {mp3_filename}...", end=" ", flush=True)
             result_file, success = convert_flac_to_mp3(flac_file, output_file, args.bitrate, args.threads)
@@ -299,14 +314,12 @@ Examples:
                 print("✗")
                 failed += 1
     
-    # Copy image files for all albums
+    # Copy image files recursively
     print()
     print("Copying album artwork...")
-    for album_name, album_in_path, album_out_path in album_image_tasks:
-        copied = copy_image_files(album_in_path, album_out_path)
-        if copied > 0:
-            print(f"  {album_name}: Copied {copied} image file(s)")
-            images_copied += copied
+    images_copied = copy_image_files_recursive(base_path)
+    if images_copied > 0:
+        print(f"  Copied {images_copied} image file(s)")
     
     # Summary
     print()

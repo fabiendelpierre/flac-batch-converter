@@ -5,8 +5,9 @@ A Python script to batch convert FLAC audio files to MP3 format while preserving
 ## Features
 
 - Batch conversion of FLAC files to MP3 format
-- Preserves album directory structure
-- **Automatically copies album artwork** (jpg, png, gif, etc.) to output folders
+- **Recursive directory scanning** - finds FLAC files at any depth
+- **Preserves complete folder structure** - including multi-disc albums (CD1, CD2, etc.)
+- **Automatically copies album artwork** (jpg, png, gif, etc.) at all directory levels
 - Configurable bitrate/quality settings
 - Support for Variable Bitrate (VBR) and Constant Bitrate (CBR)
 - **True parallel processing** across multiple albums simultaneously
@@ -71,7 +72,7 @@ This will create a virtual environment and install all required Python dependenc
 
 ### Directory Structure
 
-The script expects the following directory structure:
+The script recursively scans for FLAC files and preserves the complete directory structure:
 
 ```
 <base_path>/
@@ -79,14 +80,25 @@ The script expects the following directory structure:
 │   ├── Album1/
 │   │   ├── track1.flac
 │   │   ├── track2.flac
-│   │   └── ...
-│   ├── Album2/
-│   │   ├── track1.flac
-│   │   └── ...
+│   │   └── cover.jpg
+│   ├── Album2 - Multi-Disc/
+│   │   ├── cover.jpg
+│   │   ├── CD1/
+│   │   │   ├── track1.flac
+│   │   │   └── track2.flac
+│   │   └── CD2/
+│   │       ├── track1.flac
+│   │       └── track2.flac
 │   └── ...
 └── out/
-    └── (converted files will be placed here)
+    └── (converted files with preserved structure)
 ```
+
+**Key Features:**
+- **Recursive scanning**: Finds FLAC files at any depth
+- **Structure preservation**: Maintains exact folder hierarchy in output
+- **Multi-disc support**: Handles albums with CD1, CD2, Disc1, Disc2, etc. subfolders
+- **Image preservation**: Copies artwork at all levels of the directory tree
 
 ### Basic Usage
 
