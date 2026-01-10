@@ -265,6 +265,32 @@ Conversion complete!
 ==================================================
 ```
 
+## Get Music Batch script (get\_music\_batch.py)
+
+Helper script to copy a batch of music folders to the batch conversion script's input folder.
+
+Context: at all times I have a queue of hundreds of new music albums to listen to. I take a manageable batch of them (10-15) at a time to transcode from FLAC to MP3, then put the MP3 files on my phone.
+
+Problem: when I need to grab a new batch of folders conversion, I can rsync them individually but that's cumbersome. Something like this works most of the time:
+
+```shell
+$ ls -1 $srcPath | head -n $batchSize | xargs -I {} rsync -a $srcPath/{} $dstPath/
+```
+
+But `xargs` breaks if there are single quotes `'` in the name of one of the folders, which is a frequent occurrence. Using `-0` takes care of that but introduces other complications.
+
+So I just need something simple to grab a batch of n folders from the top of the list, ignore any special characters in the file/folder names, and copy them where I need them, and that's what this script is for. Overkill? Probably. Maybe there's a pure Bash solution that's simpler.
+
+### Usage
+
+```shell
+$ uv run get_music_batch.py -n 12 <source path> <destination path>
+```
+
+Add `-l` before the source path to do a dry run (only list folders that would be copied without copying them).
+
+Add `-v` before the source path to enable verbose output that shows you the files as they're being copied.
+
 ## License
 
 This project is licensed under the GNU GPLv3 - see the [LICENSE](LICENSE) file for details.
